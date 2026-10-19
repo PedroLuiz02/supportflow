@@ -46,6 +46,7 @@ O **SupportFlow** é uma aplicação web que permite ao usuário criar uma conta
 | Spring Security | Segurança e controle de acesso |
 | JWT | Autenticação por token |
 | PostgreSQL | Banco de dados relacional |
+| Docker Compose | Execução do PostgreSQL em container, com volume e variáveis de ambiente |
 | Flyway | Migrações versionadas do banco |
 | Maven | Dependências e execução dos testes |
 | HTML, CSS e JavaScript | Interface web |
@@ -65,13 +66,47 @@ Cada chamado referencia um usuário por meio da chave estrangeira `chamados.user
 
 - JDK 21.
 - PostgreSQL em execução.
+- Docker e Docker Compose (Docker Desktop).
 - Python 3.
 - Navegador web.
 
-### 1. Criar o banco
+### 1. Subir o banco de dados
 
-Crie no PostgreSQL um banco chamado `supportflow`. A configuração local esperada pelo projeto utiliza a porta `5433` e o usuário `postgres`; ajuste conforme seu ambiente.
+O PostgreSQL roda em um container Docker, com os dados persistidos em um volume. Não é necessário instalar o PostgreSQL na máquina nem criar o banco manualmente.
 
+Na raiz do repositório, crie o arquivo de ambiente a partir do modelo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edite o `.env` e defina os valores. O arquivo `.env` contém a senha e **não é versionado** no Git:
+
+| Variável | Descrição |
+|---|---|
+| `DB_NAME` | Nome do banco de dados (`supportflow`) |
+| `DB_USERNAME` | Usuário do PostgreSQL (`postgres`) |
+| `DB_PASSWORD` | Senha do PostgreSQL (defina uma senha local) |
+
+Suba o banco:
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+```
+
+O container cria o banco `supportflow` na primeira execução, e o Flyway cria as tabelas quando o backend inicia pela primeira vez.
+
+Comandos úteis:
+
+```powershell
+docker compose down        # finaliza o banco e mantém os dados
+docker compose down -v     # finaliza o banco e apaga os dados
+```
+
+> Se a senha for alterada no `.env`, execute `docker compose down -v` para recriar o banco.
+
+O container expõe o PostgreSQL na porta `5433` da máquina (porta `5432` dentro do container).
 ### 2. Configurar as variáveis de ambiente
 
 No PowerShell, configure as variáveis antes de iniciar o backend. Substitua o valor de exemplo pela senha local do PostgreSQL:
@@ -123,6 +158,10 @@ docker run --rm -p 5500:80 -e BACKEND_URL=http://backend:8080 supportflow-fronte
 
 Nesse exemplo, `backend` deve ser o nome DNS do container/serviço do backend e ambos os containers devem estar na mesma rede Docker. Ao executar o backend diretamente na máquina host, mantenha o valor padrão.
 
+## Sobre o PostgreSQL em container
+
+O serviço `postgres` do [`docker-compose.yml`](docker-compose.yml) usa a **imagem oficial** `postgres:16-alpine`, por isso o projeto **não possui um Dockerfile específico para o banco**: usuário, senha e nome do banco são configurados por variáveis de ambiente, a persistência é feita por volume nomeado (`postgres_data`) e o esquema é criado pelo Flyway. Um Dockerfile só seria necessário para customizar a imagem (extensões, arquivos de configuração próprios).
+
 ## Endpoints principais
 
 | Método | Endpoint | Finalidade |
@@ -150,6 +189,9 @@ Uma execução bem-sucedida termina com `BUILD SUCCESS`.
 
 ```text
 supportflow/
+├── .github/workflows/ci.yml
+├── .env.example
+├── docker-compose.yml
 ├── README.md
 ├── db.sql
 ├── docs/
@@ -157,8 +199,10 @@ supportflow/
 │   └── images/
 │       └── supportflow-visao-geral.png
 ├── frontend/
+│   ├── Dockerfile
 │   └── js/
 └── supportflow/
+    ├── Dockerfile
     ├── mvnw.cmd
     ├── pom.xml
     └── src/
@@ -174,6 +218,7 @@ supportflow/
 
 - [`docs/arquitetura.md`](docs/arquitetura.md) — visão geral da arquitetura e do fluxo principal.
 - [`db.sql`](db.sql) — referência do esquema final do banco de dados.
+- [`docker-compose.yml`](docker-compose.yml) — serviço PostgreSQL em container.
 - `supportflow/src/main/resources/db/migration/` — migrações versionadas do Flyway.
 
 ---
